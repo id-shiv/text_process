@@ -27,43 +27,10 @@ NUM_OF_SAMPLES = 5000
 
 #endregion
 
-def get_texts(data_path: str, text_column: str, num_of_samples: int=-1):
-    # Read the dataset and retrieve texts
-    data = pd.read_csv(data_path)
-
-    # Let's use only the first sentence of the text for our project
-    data = data[text_column].apply(lambda x: x.split('.')[0])
-
-    if num_of_samples <= 0:
-        return data
-    else:
-        return data[:num_of_samples]
-
-def tokenize(sentences):
-    tokenizer = RegexpTokenizer(r'\w+')
-    sample_data_tokenized = [w.lower() for w in sentences]
-    sample_data_tokenized = [tokenizer.tokenize(i) for i in sample_data_tokenized]
-    
-    return(sample_data_tokenized)
-
-def content_extractor(content: str, start: str=None, end: str=None):
-    try:
-        if start and content and end:
-            builder = "{}(.*)(?={})".format(start, end)
-            pattern = re.compile(builder)
-            return pattern.search(content).group(0)
-        else:
-            return content
-    except Exception as e:
-            return content
-    
-    # USAGE:
-    # ser1=df.apply(lambda x: content_extractor(x,"start_text","end_text"))
-
-def text_process(text: str):
+def pre_process(text: str):
     '''
     Takes in a string of text, then performs the following:
-    1. Remove all punctuation
+    1. Remove all punctuation and digits
     2. Remove all stopwords
     3. Return the cleaned text as a list of words
     4. Remove words
@@ -72,7 +39,7 @@ def text_process(text: str):
     nopunc = [char for char in text if char not in string.punctuation]
     nopunc = ''.join([i for i in nopunc if not i.isdigit()])
     nopunc =  [word.lower() for word in nopunc.split() if word not in stopwords.words('english')]
-    return [stemmer.lemmatize(word) for word in nopunc]
+    return " ".join([stemmer.lemmatize(word) for word in nopunc])
 
     # USAGE:
     # sample_text = "Hey There! This is a Sample review, which 123happens {blah}%456 to contain happened punctuations universal rights of right contained."
@@ -106,23 +73,48 @@ def optimal_k(X_vectorized, k_max=5):
     # K at the elbow of the curve in above graph would be an optimal K
 
 if __name__ ==  '__main__':
-    texts = get_texts(DATA_PATH, TEXT_COLUMN, NUM_OF_SAMPLES)
-    
-    print('Processing texts...')
-    texts = [' '.join(text_process(text)) for text in tqdm(texts)]
-    X_vectorized, vectorizer = vectorize(texts)
+    # Read the dataset and retrieve texts
+    data = pd.read_csv(DATA_PATH)
 
-    # Find Optimal K when required
+    # Let's use only the first sentence of the text for our project
+    data[TEXT_COLUMN] = data[TEXT_COLUMN].apply(lambda x: x.split('.')[0])
+
+    if NUM_OF_SAMPLES > 0:
+        data = data.head(NUM_OF_SAMPLES)
+    
+    print('Pre-Processing texts...')
+    data[TEXT_COLUMN] = data[TEXT_COLUMN].apply(lambda x: pre_process(x))
+    # print(data[TEXT_COLUMN].tolist()[:5])
+    
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.feature_extraction.text import CountVectorizer
+    from sklearn.cluster import KMeans
+    import numpy as np
+    import pandas as pd
+
+    # In information retrieval or text mining, the term frequency-inverse document frequency also called tf-idf, 
+    # is a well known method to evaluate how important is a word in a document. 
+    # tf-idf are also a very interesting way to convert the textual representation of information into a Vector Space Model (VSM).
+    vectorizer_tfidf = TfidfVectorizer(stop_words='english')
+    X = vectorizer_tfidf.fit_transform(data[TEXT_COLUMN].tolist())
+    
+    # It takes the words of each sentence and creates a vocabulary of all the unique words in the sentences. 
+    # This vocabulary can then be used to create a feature vector of the count of the words:
+    vectorizer_count = CountVectorizer(min_df=0, lowercase=False)
+    vectorizer_count.fit(data[TEXT_COLUMN].tolist())
+    print(list(vectorizer_count.vocabulary_)[:5])
+
+    # # Find Optimal K when required
     # print('Determining optimal K using Sum of Squared Distances...')
-    # optimal_k(X_vectorized, k_max=10)
+    # optimal_k(X, k_max=10)
 
     K = 6
     model = KMeans(n_clusters=K, init='k-means++', max_iter=100, n_init=1)
-    model.fit(X_vectorized)
+    model.fit(X)
 
     print("Top terms per cluster:")
     order_centroids = model.cluster_centers_.argsort()[:, ::-1]
-    terms = vectorizer.get_feature_names()
+    terms = vectorizer_tfidf.get_feature_names()
     for i in range(K):
         print("Cluster %d:" % i),
         for ind in order_centroids[i, :10]:
@@ -133,11 +125,11 @@ if __name__ ==  '__main__':
     print("\n")
     print("Prediction")
 
-    Y = vectorizer.transform(["this movie is a horror thriller"])
+    Y = vectorizer_tfidf.transform(["this movie is a horror thriller"])
     prediction = model.predict(Y)
     print(prediction)
 
-    Y = vectorizer.transform(["drama movies are often too long."])
+    Y = vectorizer_tfidf.transform(["drama movies are often too long."])
     prediction = model.predict(Y)
     print(prediction)
     

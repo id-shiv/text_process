@@ -4,28 +4,21 @@
 
 - For a given text, identify most relevant tags.
 
-## References  
-
-- <https://www.youtube.com/watch?v=3pRgZfjTb0c>
-- <https://drive.google.com/file/d/1ZzM3uVmR6td0JQ9QfLs7Z0zYR2F4dCln/view>
-
 ## Approach
 
-- For this project, let's use IMDB dataset of movie reviews and generate search results of review.
-- Our problem seeks a similarity function for given text against dataset (all reviews). This problem is called as `Nearest Neighbour Search` problem (latest version of ElasticSearch has already implemented Nearest Neighbour Search)
-- For vectorizer, let's use Google\Tensorflow's Universal Sentence Encoder (USE) with 512 dimensions.
+- For this project, let's use IMDB dataset of movie reviews and generate optimal set of clusters.
+- To generate optimal set of clusters, we shall use `sum of squared distances` and plot to view the K at elbow.
 
 ## Requirements
 
-- ElasticSearch database installed and running.
 - Universal Sentence Encoder (USE) model downloaded and stored locally from <https://tfhub.dev/google/universal-sentence-encoder-large/5>
 - IMDB Dataset downloaded and stored locally from <https://www.kaggle.com/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews>
 - Installs:  
 `pip3 install --upgrade pip`  
-`pip3 install elasticsearch`  
 `pip3 install pandas`  
-`pip3 install --upgrade --no-cache-dir tensorflow`  
-`pip3 install --upgrade tensorflow-hub`  
+`pip3 install nltk`
+`pip3 install sklearn`  
+`pip3 install matplotlib`
 
 ## Configurations
 
