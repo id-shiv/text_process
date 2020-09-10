@@ -1,10 +1,12 @@
 # region Import packages
 from tqdm import tqdm
 
+# packages for text processing
 import re
 import string
 import pandas as pd
 import numpy as np
+from collections import Counter
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
@@ -12,12 +14,12 @@ from nltk.stem import WordNetLemmatizer, PorterStemmer
 # nltk.download('stopwords')
 # nltk.download('wordnet')
 
+# packages for model
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 
+# packages for analysis
 import matplotlib.pyplot as plt
-
-from collections import Counter
 
 #endregion
 
@@ -117,4 +119,4 @@ if __name__ == "__main__":
 
     df = pd.read_csv(DATA_PATH)
     df_preprocessed = pre_process(df, text_column=TEXT_COLUMN)
-    # print(df_preprocessed)
+    print(df_preprocessed)
