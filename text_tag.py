@@ -4,10 +4,11 @@ from tqdm import tqdm
 import re
 import string
 import pandas as pd
+import numpy as np
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
-from nltk.stem import WordNetLemmatizer
+from nltk.stem import WordNetLemmatizer, PorterStemmer
 # nltk.download('stopwords')
 # nltk.download('wordnet')
 
@@ -16,120 +17,104 @@ from sklearn.cluster import KMeans
 
 import matplotlib.pyplot as plt
 
-#endregion
-
-#region CONSTANTS
-
-## DATA
-DATA_PATH = '/Users/shiv/Documents/gitRepositories/iutils/input/data/IMDB Dataset.csv'
-TEXT_COLUMN = 'review'
-NUM_OF_SAMPLES = 5000
+from collections import Counter
 
 #endregion
 
-def pre_process(text: str):
+
+def _remove_stopwords(text: str, stop_words: list()):
+    """custom function to remove the stopwords"""
+    return " ".join([word for word in str(text).split() if word not in stop_words])
+
+def _get_words_frequenct(df: pd.DataFrame(), text_column: str, n_frequent: int=10):
+    """custom function to remove the frequent words"""
+    cnt = Counter()
+    for text in df[text_column].values:
+        for word in text.split():
+            cnt[word] += 1
+            
+    freq_words = set([w for (w, wc) in cnt.most_common(n_frequent)])
+    rare_words = set([w for (w, wc) in cnt.most_common()[:-n_frequent-1:-1]])
+
+    return freq_words, rare_words
+
+def pre_process(df: pd.DataFrame(), text_column: str,
+                text_lower: bool=True,
+                remove_html_tags: bool=True,
+                remove_punctuations: bool=True, punctuations: list()=string.punctuation, remove_digits: bool=True, 
+                remove_stopwords: bool=True, stop_words: list()=stopwords.words('english'), additional_stopwords: list()=None,
+                remove_frequent_words: bool=True, n_frequent: int=10,
+                remove_rare_words: bool=True,
+                stem_words: bool=False, lemmatize_words: bool=True):
     '''
-    Takes in a string of text, then performs the following:
-    1. Remove all punctuation and digits
-    2. Remove all stopwords
-    3. Return the cleaned text as a list of words
-    4. Remove words
+    Takes in a dataframe and a text column name, then processes these texts.
+
+    ::RETURN
+    Input dataframe with an added column 'pre_processed' containing processed texts of 'text_column'
+
+    # Reference: https://www.kaggle.com/sudalairajkumar/getting-started-with-text-preprocessing
     '''
-    stemmer = WordNetLemmatizer()
-    nopunc = [char for char in text if char not in string.punctuation]
-    nopunc = ''.join([i for i in nopunc if not i.isdigit()])
-    nopunc =  [word.lower() for word in nopunc.split() if word not in stopwords.words('english')]
-    return " ".join([stemmer.lemmatize(word) for word in nopunc])
-
-    # USAGE:
-    # sample_text = "Hey There! This is a Sample review, which 123happens {blah}%456 to contain happened punctuations universal rights of right contained."
-    # print(text_process(sample_text))
-
-def vectorize(texts: list()):
-    """ TFIDF Vectorizer is used to create a vocabulary. 
-    TFIDF is a product of how frequent a word is in a document multiplied by how unique a word is w.r.t the entire corpus. 
-    ngram_range parameter : which will help to create one , two or more word vocabulary depending on the requirement.
-    """
-    vectorizer = TfidfVectorizer()
-    X_vectorized = vectorizer.fit_transform(texts)
-
-    return X_vectorized, vectorizer
-
-def optimal_k(X_vectorized, k_max=5):
-    # Determine Optimal K value
-    sum_of_sq_distances = list()
-    K_range = range(1, k_max)
     
-    for i in tqdm(K_range):
-        model = KMeans(n_clusters=i)    
-        model.fit(X_vectorized)
-        sum_of_sq_distances.append(model.inertia_)
+    df['processed_text'] = np.nan  # create a new column to contain the processed texts
+    stemmer = PorterStemmer()  # create the stemmer
+    lemmatizer = WordNetLemmatizer()  # create the lemmatizer
 
-    plt.plot(K_range, sum_of_sq_distances, 'bx-')
-    plt.xlabel('k')
-    plt.ylabel('Sum of Squared Distances')
-    plt.title('Find Optimal K using Elbow method')
-    plt.show()
-    # K at the elbow of the curve in above graph would be an optimal K
+    # get n most frequently occuring and rare words in entire corpus
+    _freq_words, _rare_words = _get_words_frequenct(df, text_column, n_frequent)
 
-if __name__ ==  '__main__':
-    # Read the dataset and retrieve texts
-    data = pd.read_csv(DATA_PATH)
+    print('Processing texts')
+    for index, row in tqdm(df.iterrows(), total=df.shape[0]):
+        text = row[text_column]
+        
+        if text_lower:
+            text = text.lower()
+        
+        if remove_html_tags:
+            html_pattern = re.compile('<.*?>')
+            text = html_pattern.sub(r'', text)
 
-    # Let's use only the first sentence of the text for our project
-    data[TEXT_COLUMN] = data[TEXT_COLUMN].apply(lambda x: x.split('.')[0])
+        if remove_punctuations:
+            # map punctuation to space
+            translator = str.maketrans(punctuations, ' '*len(punctuations)) 
+            text = text.translate(translator)
 
-    if NUM_OF_SAMPLES > 0:
-        data = data.head(NUM_OF_SAMPLES)
-    
-    print('Pre-Processing texts...')
-    data[TEXT_COLUMN] = data[TEXT_COLUMN].apply(lambda x: pre_process(x))
-    # print(data[TEXT_COLUMN].tolist()[:5])
-    
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.feature_extraction.text import CountVectorizer
-    from sklearn.cluster import KMeans
-    import numpy as np
-    import pandas as pd
+        if remove_digits:
+            text = re.sub('\d', ' ', text)
 
-    # In information retrieval or text mining, the term frequency-inverse document frequency also called tf-idf, 
-    # is a well known method to evaluate how important is a word in a document. 
-    # tf-idf are also a very interesting way to convert the textual representation of information into a Vector Space Model (VSM).
-    vectorizer_tfidf = TfidfVectorizer(stop_words='english')
-    X = vectorizer_tfidf.fit_transform(data[TEXT_COLUMN].tolist())
-    
-    # It takes the words of each sentence and creates a vocabulary of all the unique words in the sentences. 
-    # This vocabulary can then be used to create a feature vector of the count of the words:
-    vectorizer_count = CountVectorizer(min_df=0, lowercase=False)
-    vectorizer_count.fit(data[TEXT_COLUMN].tolist())
-    print(list(vectorizer_count.vocabulary_)[:5])
+        if remove_stopwords:
+            if additional_stopwords:
+                stop_words = stop_words + additional_stopwords
+            text = _remove_stopwords(text, stop_words)
+        
+        if remove_frequent_words:
+            text = " ".join([word for word in str(text).split() if word not in _freq_words])
 
-    # # Find Optimal K when required
-    # print('Determining optimal K using Sum of Squared Distances...')
-    # optimal_k(X, k_max=10)
+        if remove_rare_words:
+            text = " ".join([word for word in str(text).split() if word not in _rare_words])
 
-    K = 6
-    model = KMeans(n_clusters=K, init='k-means++', max_iter=100, n_init=1)
-    model.fit(X)
+        if stem_words:
+            text = " ".join([stemmer.stem(word) for word in text.split()])
 
-    print("Top terms per cluster:")
-    order_centroids = model.cluster_centers_.argsort()[:, ::-1]
-    terms = vectorizer_tfidf.get_feature_names()
-    for i in range(K):
-        print("Cluster %d:" % i),
-        for ind in order_centroids[i, :10]:
-            print(' %s' % terms[ind]),
-        print
+        if lemmatize_words:
+            text = " ".join([lemmatizer.lemmatize(word, "n") for word in text.split()])
 
-    # Prediction
-    print("\n")
-    print("Prediction")
+        # print(row[text_column])
+        # print('\n\n-----\n\n')
+        # print(text)
+        df.iloc[index, df.columns.get_loc('processed_text')] = text
 
-    Y = vectorizer_tfidf.transform(["this movie is a horror thriller"])
-    prediction = model.predict(Y)
-    print(prediction)
+    return df
 
-    Y = vectorizer_tfidf.transform(["drama movies are often too long."])
-    prediction = model.predict(Y)
-    print(prediction)
-    
+if __name__ == "__main__":
+    #region CONSTANTS
+
+    ## DATA
+    DATA_PATH = '/Users/shiv/Documents/gitRepositories/iutils/input/data/IMDB Dataset.csv'
+    TEXT_COLUMN = 'review'
+    NUM_OF_SAMPLES = 2
+
+    #endregion
+
+    df = pd.read_csv(DATA_PATH)
+    df_preprocessed = pre_process(df, text_column=TEXT_COLUMN)
+    # print(df_preprocessed)
